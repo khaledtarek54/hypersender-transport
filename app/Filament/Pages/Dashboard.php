@@ -13,11 +13,7 @@ class Dashboard extends BaseDashboard
     
     protected function getHeaderWidgets(): array
     {
-        return [
-            \App\Filament\Widgets\ActiveTripsWidget::class,
-            \App\Filament\Widgets\AvailableResourcesWidget::class,
-            \App\Filament\Widgets\MonthlyTripsWidget::class,
-        ];
+        return [];
     }
     
     protected function getFooterWidgets(): array

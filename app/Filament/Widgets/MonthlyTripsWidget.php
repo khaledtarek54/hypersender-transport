@@ -11,6 +11,8 @@ class MonthlyTripsWidget extends ChartWidget
     protected static ?string $heading = 'Monthly Trips';
     
     protected static ?int $sort = 3;
+    
+    protected int | string | array $columnSpan = 'full';
 
     protected function getData(): array
     {
