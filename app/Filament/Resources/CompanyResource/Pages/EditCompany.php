@@ -13,7 +13,16 @@ class EditCompany extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\Action::make('back')
+                ->label('Back to Companies')
+                ->icon('heroicon-o-arrow-left')
+                ->color('gray')
+                ->url(fn (): string => CompanyResource::getUrl('index')),
+            Actions\DeleteAction::make()
+                ->requiresConfirmation()
+                ->modalHeading('Delete Company')
+                ->modalDescription('Are you sure you want to delete this company? This action cannot be undone.')
+                ->modalSubmitActionLabel('Yes, delete it'),
         ];
     }
 }

@@ -10,6 +10,8 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Facades\Filament;
+use Illuminate\Support\Facades\View;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -29,8 +31,14 @@ class AppPanelProvider extends PanelProvider
             ->login()
             ->profile()
             ->colors([
-                'primary' => Color::Green,
+                'primary' => Color::Indigo,
+                'success' => Color::Emerald,
+                'info' => Color::Blue,
+                'warning' => Color::Orange,
+                'danger' => Color::Rose,
+                'gray' => Color::Slate,
             ])
+            ->font('Inter')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -52,4 +60,5 @@ class AppPanelProvider extends PanelProvider
                 Authenticate::class,
             ]);
     }
+    
 }
