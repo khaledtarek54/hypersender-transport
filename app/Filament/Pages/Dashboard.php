@@ -21,6 +21,7 @@ class Dashboard extends BaseDashboard
             \App\Filament\Widgets\ActiveTripsWidget::class,
             \App\Filament\Widgets\AvailableResourcesWidget::class,
             \App\Filament\Widgets\MonthlyTripsWidget::class,
+            \App\Filament\Widgets\TripsByStatusWidget::class,
         ];
     }
     
