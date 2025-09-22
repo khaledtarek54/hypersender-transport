@@ -13,12 +13,23 @@ class Dashboard extends BaseDashboard
     
     protected static ?string $title = 'Dashboard';
     
+
+    
     protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\ActiveTripsWidget::class,
+            \App\Filament\Widgets\AvailableResourcesWidget::class,
+            \App\Filament\Widgets\MonthlyTripsWidget::class,
+        ];
+    }
+    
+    protected function getFooterWidgets(): array
     {
         return [];
     }
     
-    protected function getFooterWidgets(): array
+    public function getWidgets(): array
     {
         return [];
     }
