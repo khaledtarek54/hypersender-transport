@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 
 class Company extends Model
 {
@@ -44,5 +45,16 @@ class Company extends Model
     public function trips(): HasMany
     {
         return $this->hasMany(Trip::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function () {
+            Cache::forget('kpi:total_companies');
+        });
+
+        static::deleted(function () {
+            Cache::forget('kpi:total_companies');
+        });
     }
 }

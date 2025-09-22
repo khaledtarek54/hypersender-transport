@@ -3,40 +3,49 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Trip;
-use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use App\Models\Driver;
+use App\Models\Vehicle;
+use App\Models\Enums\TripStatus;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+ 
 
 class ActiveTripsWidget extends BaseWidget
 {
     protected function getStats(): array
     {
-        $scheduledTrips = Trip::where('status', 'scheduled')->count();
-        $inProgressTrips = Trip::where('status', 'in_progress')->count();
-        $completedToday = Trip::where('status', 'completed')
-            ->whereDate('updated_at', today())
+        $now = now();
+
+        $activeNow = Trip::whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
+            ->where('start_time', '<=', $now)
+            ->where('end_time', '>=', $now)
             ->count();
-        $totalTrips = Trip::count();
+
+        $scheduledToday = Trip::where('status', TripStatus::Scheduled->value)
+            ->whereDate('start_time', $now->toDateString())
+            ->count();
+
+
+        $completedThisMonth = Trip::where('status', TripStatus::Completed->value)
+            ->whereMonth('end_time', $now->month)
+            ->whereYear('end_time', $now->year)
+            ->count();
 
         return [
-            Stat::make('Scheduled Trips', $scheduledTrips)
-                ->description('Trips waiting to start')
-                ->descriptionIcon('heroicon-m-calendar')
-                ->color('warning'),
-            
-            Stat::make('In Progress', $inProgressTrips)
-                ->description('Currently active trips')
+            Stat::make('Active Trips Now', $activeNow)
+                ->description('Trips currently running')
                 ->descriptionIcon('heroicon-m-play')
                 ->color('primary'),
-            
-            Stat::make('Completed Today', $completedToday)
-                ->description('Trips finished today')
+
+            Stat::make('Scheduled Today', $scheduledToday)
+                ->description('New trips starting today')
+                ->descriptionIcon('heroicon-m-calendar-days')
+                ->color('warning'),
+
+            Stat::make('Completed This Month', $completedThisMonth)
+                ->description('Trips finished this month')
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
-            
-            Stat::make('Total Trips', $totalTrips)
-                ->description('All time trips')
-                ->descriptionIcon('heroicon-m-chart-bar')
-                ->color('gray'),
         ];
     }
 }

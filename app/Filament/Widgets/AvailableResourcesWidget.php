@@ -2,11 +2,14 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\Trip;
 use App\Models\Driver;
 use App\Models\Vehicle;
-use App\Models\Trip;
-use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use App\Models\Company;
+use App\Models\Enums\TripStatus;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use Illuminate\Support\Facades\Cache;
 
 class AvailableResourcesWidget extends BaseWidget
 {
@@ -16,14 +19,14 @@ class AvailableResourcesWidget extends BaseWidget
         $totalVehicles = Vehicle::where('is_active', true)->count();
         
         // Get drivers currently on trips
-        $driversOnTrips = Trip::whereIn('status', ['scheduled', 'in_progress'])
+        $driversOnTrips = Trip::whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where('start_time', '<=', now())
             ->where('end_time', '>=', now())
             ->distinct('driver_id')
             ->count('driver_id');
             
         // Get vehicles currently on trips
-        $vehiclesOnTrips = Trip::whereIn('status', ['scheduled', 'in_progress'])
+        $vehiclesOnTrips = Trip::whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where('start_time', '<=', now())
             ->where('end_time', '>=', now())
             ->distinct('vehicle_id')
@@ -43,15 +46,15 @@ class AvailableResourcesWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-truck')
                 ->color($availableVehicles > 0 ? 'success' : 'danger'),
             
-            Stat::make('Active Trips', $driversOnTrips)
-                ->description('Currently running trips')
-                ->descriptionIcon('heroicon-m-map')
-                ->color('primary'),
-            
             Stat::make('Utilization Rate', $totalDrivers > 0 ? round(($driversOnTrips / $totalDrivers) * 100, 1) . '%' : '0%')
                 ->description('Driver utilization')
                 ->descriptionIcon('heroicon-m-chart-pie')
                 ->color('info'),
+
+            Stat::make('Total Companies', Cache::remember('kpi:total_companies', 300, fn () => Company::count()))
+                ->description('Organizations in system')
+                ->descriptionIcon('heroicon-m-building-office-2')
+                ->color('gray'),
         ];
     }
 }

@@ -136,6 +136,7 @@ class TripResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['company', 'driver', 'vehicle']))
             ->filters([
                 Tables\Filters\SelectFilter::make('company')
                     ->relationship('company', 'name'),

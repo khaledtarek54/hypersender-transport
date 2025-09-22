@@ -2,17 +2,19 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
+use App\Models\Trip;
 use App\Models\Driver;
 use App\Models\Vehicle;
-use App\Models\Trip;
-use Carbon\Carbon;
+use App\Models\Enums\TripStatus;
+use Illuminate\Database\Eloquent\Collection;
 
 class AvailabilityService
 {
     /**
      * Get available drivers for a specific time period
      */
-    public function getAvailableDrivers(Carbon $startTime = null, Carbon $endTime = null): \Illuminate\Database\Eloquent\Collection
+    public function getAvailableDrivers(?Carbon $startTime = null, ?Carbon $endTime = null): Collection
     {
         $startTime = $startTime ?? now();
         $endTime = $endTime ?? $startTime->copy()->addDay();
@@ -21,7 +23,7 @@ class AvailabilityService
         $activeDrivers = Driver::where('is_active', true)->get();
 
         // Get drivers who have trips during the specified time period
-        $busyDriverIds = Trip::whereIn('status', ['scheduled', 'in_progress'])
+        $busyDriverIds = Trip::whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where(function ($query) use ($startTime, $endTime) {
                 $query->whereBetween('start_time', [$startTime, $endTime])
                     ->orWhereBetween('end_time', [$startTime, $endTime])
@@ -40,7 +42,7 @@ class AvailabilityService
     /**
      * Get available vehicles for a specific time period
      */
-    public function getAvailableVehicles(Carbon $startTime = null, Carbon $endTime = null): \Illuminate\Database\Eloquent\Collection
+    public function getAvailableVehicles(?Carbon $startTime = null, ?Carbon $endTime = null): Collection
     {
         $startTime = $startTime ?? now();
         $endTime = $endTime ?? $startTime->copy()->addDay();
@@ -49,7 +51,7 @@ class AvailabilityService
         $activeVehicles = Vehicle::where('is_active', true)->get();
 
         // Get vehicles that have trips during the specified time period
-        $busyVehicleIds = Trip::whereIn('status', ['scheduled', 'in_progress'])
+        $busyVehicleIds = Trip::whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where(function ($query) use ($startTime, $endTime) {
                 $query->whereBetween('start_time', [$startTime, $endTime])
                     ->orWhereBetween('end_time', [$startTime, $endTime])
@@ -71,7 +73,7 @@ class AvailabilityService
     public function isDriverAvailable(int $driverId, Carbon $startTime, Carbon $endTime): bool
     {
         $conflictingTrips = Trip::where('driver_id', $driverId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where(function ($query) use ($startTime, $endTime) {
                 $query->whereBetween('start_time', [$startTime, $endTime])
                     ->orWhereBetween('end_time', [$startTime, $endTime])
@@ -91,7 +93,7 @@ class AvailabilityService
     public function isVehicleAvailable(int $vehicleId, Carbon $startTime, Carbon $endTime): bool
     {
         $conflictingTrips = Trip::where('vehicle_id', $vehicleId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where(function ($query) use ($startTime, $endTime) {
                 $query->whereBetween('start_time', [$startTime, $endTime])
                     ->orWhereBetween('end_time', [$startTime, $endTime])
@@ -108,10 +110,10 @@ class AvailabilityService
     /**
      * Get upcoming trips for a driver
      */
-    public function getUpcomingTripsForDriver(int $driverId, int $limit = 5): \Illuminate\Database\Eloquent\Collection
+    public function getUpcomingTripsForDriver(int $driverId, int $limit = 5): Collection
     {
         return Trip::where('driver_id', $driverId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where('start_time', '>=', now())
             ->with(['vehicle', 'company'])
             ->orderBy('start_time')
@@ -122,10 +124,10 @@ class AvailabilityService
     /**
      * Get upcoming trips for a vehicle
      */
-    public function getUpcomingTripsForVehicle(int $vehicleId, int $limit = 5): \Illuminate\Database\Eloquent\Collection
+    public function getUpcomingTripsForVehicle(int $vehicleId, int $limit = 5): Collection
     {
         return Trip::where('vehicle_id', $vehicleId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value])
             ->where('start_time', '>=', now())
             ->with(['driver', 'company'])
             ->orderBy('start_time')

@@ -4,7 +4,6 @@ namespace App\Filament\Pages;
 
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Actions;
-use App\Services\KpiService;
 
 class Dashboard extends BaseDashboard
 {
