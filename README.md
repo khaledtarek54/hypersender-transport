@@ -43,6 +43,10 @@ php artisan serve
 # Filament panel will be under /app (e.g., http://127.0.0.1:8000/app)
 ```
 
+Login
+```bash
+email: admin@example.com
+password: password
 Run tests:
 ```bash
 vendor\bin\pest.bat  # Windows
