@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Enums\TripStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,14 +28,11 @@ class Trip extends Model
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'distance' => 'decimal:2',
+        'status' => TripStatus::class,
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    const STATUS_SCHEDULED = 'scheduled';
-    const STATUS_IN_PROGRESS = 'in_progress';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_CANCELLED = 'cancelled';
 
     /**
      * Get the company that owns the trip.
@@ -73,6 +71,6 @@ class Trip extends Model
      */
     public function scopeActive($query)
     {
-        return $query->whereIn('status', [self::STATUS_SCHEDULED, self::STATUS_IN_PROGRESS]);
+        return $query->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value]);
     }
 }

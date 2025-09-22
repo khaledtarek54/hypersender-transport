@@ -4,9 +4,12 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TripResource\Pages;
 use App\Filament\Resources\TripResource\RelationManagers;
+use App\Models\Enums\TripStatus;
 use App\Models\Trip;
+use App\Rules\NoOverlappingTrips;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -69,15 +72,19 @@ class TripResource extends Resource
                     ->required(),
                 Forms\Components\DateTimePicker::make('end_time')
                     ->required()
-                    ->after('start_time'),
+                    ->after('start_time')
+                    ->rules([
+                        fn (Get $get) => new NoOverlappingTrips(
+                            $get('driver_id'),
+                            $get('vehicle_id'),
+                            $get('start_time'),
+                            $get('end_time'),
+                            request()->route('record')
+                        ),
+                    ]),
                 Forms\Components\Select::make('status')
-                    ->options([
-                        'scheduled' => 'Scheduled',
-                        'in_progress' => 'In Progress',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ])
-                    ->default('scheduled')
+                    ->options(collect(TripStatus::cases())->mapWithKeys(fn ($c) => [$c->value => $c->label()])->toArray())
+                    ->default(TripStatus::Scheduled->value)
                     ->required(),
                 Forms\Components\TextInput::make('distance')
                     ->numeric()
@@ -114,13 +121,13 @@ class TripResource extends Resource
                 Tables\Columns\TextColumn::make('end_time')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'warning' => 'scheduled',
-                        'primary' => 'in_progress',
-                        'success' => 'completed',
-                        'danger' => 'cancelled',
-                    ]),
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state instanceof TripStatus ? $state->label() : (TripStatus::tryFrom($state)?->label() ?? ucfirst(str_replace('_', ' ', (string) $state))))
+                    ->color(function ($state): string {
+                        $enum = $state instanceof TripStatus ? $state : TripStatus::tryFrom((string) $state);
+                        return $enum?->color() ?? 'gray';
+                    }),
                 Tables\Columns\TextColumn::make('distance')
                     ->numeric(decimalPlaces: 2)
                     ->suffix(' km'),
@@ -133,12 +140,7 @@ class TripResource extends Resource
                 Tables\Filters\SelectFilter::make('company')
                     ->relationship('company', 'name'),
                 Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'scheduled' => 'Scheduled',
-                        'in_progress' => 'In Progress',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                    ->options(collect(TripStatus::cases())->mapWithKeys(fn ($c) => [$c->value => $c->label()])->toArray()),
                 Tables\Filters\Filter::make('date_range')
                     ->form([
                         Forms\Components\DatePicker::make('start_date'),

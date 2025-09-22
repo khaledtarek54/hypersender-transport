@@ -3,6 +3,7 @@
 namespace App\Rules;
 
 use App\Models\Trip;
+use App\Models\Enums\TripStatus;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -30,7 +31,7 @@ class NoOverlappingTrips implements ValidationRule
     {
         // Check for overlapping trips with the same driver
         $driverOverlap = Trip::where('driver_id', $this->driverId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled, TripStatus::InProgress])
             ->where(function ($query) {
                 $query->whereBetween('start_time', [$this->startTime, $this->endTime])
                     ->orWhereBetween('end_time', [$this->startTime, $this->endTime])
@@ -51,7 +52,7 @@ class NoOverlappingTrips implements ValidationRule
 
         // Check for overlapping trips with the same vehicle
         $vehicleOverlap = Trip::where('vehicle_id', $this->vehicleId)
-            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereIn('status', [TripStatus::Scheduled, TripStatus::InProgress])
             ->where(function ($query) {
                 $query->whereBetween('start_time', [$this->startTime, $this->endTime])
                     ->orWhereBetween('end_time', [$this->startTime, $this->endTime])
