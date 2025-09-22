@@ -73,4 +73,31 @@ class Trip extends Model
     {
         return $query->whereIn('status', [TripStatus::Scheduled->value, TripStatus::InProgress->value]);
     }
+
+    /**
+     * Scope a query to only include upcoming trips.
+     */
+    public function scopeUpcoming($query)
+    {
+        return $query->where('start_time', '>', now());
+    }
+
+    /**
+     * Scope a query to only include completed trips.
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', TripStatus::Completed->value);
+    }
+
+    /**
+     * Get trip duration in minutes.
+     */
+    public function getDurationMinutesAttribute()
+    {
+        if ($this->start_time && $this->end_time) {
+            return $this->start_time->diffInMinutes($this->end_time);
+        }
+        return null;
+    }
 }

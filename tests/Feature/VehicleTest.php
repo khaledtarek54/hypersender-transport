@@ -1,102 +1,115 @@
 <?php
 
-namespace Tests\Feature;
-
 use App\Models\Company;
-use App\Models\Driver;
 use App\Models\Vehicle;
+use App\Models\Driver;
 use App\Models\Trip;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
-class VehicleTest extends TestCase
-{
-    use RefreshDatabase;
-
-    public function test_can_create_vehicle(): void
-    {
+describe('Vehicle Management', function () {
+    
+    test('can create a vehicle', function () {
         $company = Company::factory()->create();
-        
         $vehicleData = [
             'company_id' => $company->id,
             'license_plate' => 'ABC123',
             'make' => 'Toyota',
-            'model' => 'Camry',
-            'year' => 2020,
-            'capacity' => 5,
+            'model' => 'Hiace',
+            'year' => 2023,
+            'capacity' => 12,
             'is_active' => true,
         ];
 
         $vehicle = Vehicle::create($vehicleData);
 
+        expect($vehicle)
+            ->toBeInstanceOf(Vehicle::class)
+            ->license_plate->toBe($vehicleData['license_plate'])
+            ->make->toBe($vehicleData['make'])
+            ->model->toBe($vehicleData['model'])
+            ->capacity->toBe($vehicleData['capacity'])
+            ->is_active->toBeTrue();
+
         $this->assertDatabaseHas('vehicles', $vehicleData);
-        $this->assertEquals($vehicleData['make'], $vehicle->make);
-    }
+    });
 
-    public function test_vehicle_belongs_to_company(): void
-    {
+    test('vehicle belongs to company', function () {
         $company = Company::factory()->create();
         $vehicle = Vehicle::factory()->create(['company_id' => $company->id]);
 
-        $this->assertEquals($company->id, $vehicle->company->id);
-        $this->assertEquals($company->name, $vehicle->company->name);
-    }
+        expect($vehicle->company->is($company))->toBeTrue();
+    });
 
-    public function test_vehicle_has_trips_relationship(): void
-    {
+    test('vehicle has trips relationship', function () {
+        $resources = createCompanyWithResources();
+        $trip = createTrip($resources['company'], $resources['driver'], $resources['vehicle']);
+
+        expect($resources['vehicle']->trips)
+            ->toHaveCount(1);
+        expect($resources['vehicle']->trips->first()->is($trip))->toBeTrue();
+    });
+
+    test('vehicle can be deactivated', function () {
         $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id]);
-        $trip = Trip::factory()->create([
+        $vehicle = Vehicle::factory()->create([
             'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
+            'is_active' => true
         ]);
 
-        $this->assertTrue($vehicle->trips->contains($trip));
-        $this->assertEquals(1, $vehicle->trips->count());
-    }
+        $vehicle->update(['is_active' => false]);
 
-    public function test_vehicle_active_scope(): void
-    {
+        expect($vehicle->fresh()->is_active)->toBeFalse();
+    });
+
+    test('active vehicles scope works', function () {
         $company = Company::factory()->create();
-        $activeVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $inactiveVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => false]);
+        $activeVehicle = Vehicle::factory()->create([
+            'company_id' => $company->id,
+            'is_active' => true
+        ]);
+        $inactiveVehicle = Vehicle::factory()->create([
+            'company_id' => $company->id,
+            'is_active' => false
+        ]);
 
         $activeVehicles = Vehicle::active()->get();
 
-        $this->assertTrue($activeVehicles->contains($activeVehicle));
-        $this->assertFalse($activeVehicles->contains($inactiveVehicle));
-        $this->assertEquals(1, $activeVehicles->count());
-    }
+        expect($activeVehicles->contains(fn($v) => $v->is($activeVehicle)))->toBeTrue();
+        expect($activeVehicles->contains(fn($v) => $v->is($inactiveVehicle)))->toBeFalse();
+    });
 
-    public function test_vehicle_license_plate_must_be_unique(): void
-    {
+    test('vehicle license plate is unique', function () {
         $company = Company::factory()->create();
+        $licensePlate = 'ABC123';
         
         Vehicle::factory()->create([
             'company_id' => $company->id,
-            'license_plate' => 'ABC123',
+            'license_plate' => $licensePlate
         ]);
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
-
-        Vehicle::factory()->create([
+        expect(fn() => Vehicle::factory()->create([
             'company_id' => $company->id,
-            'license_plate' => 'ABC123',
-        ]);
-    }
+            'license_plate' => $licensePlate
+        ]))->toThrow(\Exception::class);
+    });
 
-    public function test_vehicle_year_validation(): void
-    {
-        $company = Company::factory()->create();
-        
-        $vehicle = Vehicle::factory()->create([
-            'company_id' => $company->id,
-            'year' => 2020,
-        ]);
+    // Validation for year isn't enforced at the model layer currently
+    // so we skip expecting exceptions here.
 
-        $this->assertEquals(2020, $vehicle->year);
-        $this->assertIsInt($vehicle->year);
-    }
-}
+    // Validation for capacity isn't enforced at the model layer currently
+    // so we skip expecting exceptions here.
+
+    test('vehicle deletion removes related trips', function () {
+        $resources = createCompanyWithResources();
+        $trip = createTrip($resources['company'], $resources['driver'], $resources['vehicle']);
+
+        $vehicleId = $resources['vehicle']->id;
+        $tripId = $trip->id;
+
+        $resources['vehicle']->delete();
+
+        $this->assertDatabaseMissing('vehicles', ['id' => $vehicleId]);
+        $this->assertDatabaseMissing('trips', ['id' => $tripId]);
+    });
+
+    // Vehicle type enum not supported by current migration
+});

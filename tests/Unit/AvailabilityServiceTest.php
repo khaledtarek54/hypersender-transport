@@ -1,223 +1,270 @@
 <?php
 
-namespace Tests\Unit;
-
 use App\Models\Company;
 use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Models\Trip;
 use App\Services\AvailabilityService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 use Carbon\Carbon;
 
-class AvailabilityServiceTest extends TestCase
-{
-    use RefreshDatabase;
-
-    private AvailabilityService $availabilityService;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
+describe('AvailabilityService', function () {
+    
+    beforeEach(function () {
         $this->availabilityService = new AvailabilityService();
-    }
+    });
 
-    public function test_get_available_drivers_returns_active_drivers(): void
-    {
-        $company = Company::factory()->create();
-        $activeDriver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $inactiveDriver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => false]);
+    describe('Driver Availability', function () {
+        
+        test('returns active drivers only', function () {
+            $company = Company::factory()->create();
+            $activeDriver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            $inactiveDriver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => false]);
 
-        $availableDrivers = $this->availabilityService->getAvailableDrivers();
+            $availableDrivers = $this->availabilityService->getAvailableDrivers();
 
-        $this->assertTrue($availableDrivers->contains($activeDriver));
-        $this->assertFalse($availableDrivers->contains($inactiveDriver));
-    }
+            expect($availableDrivers->contains(fn($d) => $d->is($activeDriver)))->toBeTrue();
+            expect($availableDrivers->contains(fn($d) => $d->is($inactiveDriver)))->toBeFalse();
+        });
 
-    public function test_get_available_vehicles_returns_active_vehicles(): void
-    {
-        $company = Company::factory()->create();
-        $activeVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $inactiveVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => false]);
+        test('excludes drivers with scheduled trips', function () {
+            $resources = createCompanyWithResources();
+            $company2 = Company::factory()->create();
+            $freeDriver = Driver::factory()->create(['company_id' => $company2->id, 'is_active' => true]);
+            
+            // Create trip for first driver
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle']);
 
-        $availableVehicles = $this->availabilityService->getAvailableVehicles();
+            $availableDrivers = $this->availabilityService->getAvailableDrivers();
 
-        $this->assertTrue($availableVehicles->contains($activeVehicle));
-        $this->assertFalse($availableVehicles->contains($inactiveVehicle));
-    }
+            expect($availableDrivers->contains(fn($d) => $d->is($resources['driver'])))->toBeFalse();
+            expect($availableDrivers->contains(fn($d) => $d->is($freeDriver)))->toBeTrue();
+        });
 
-    public function test_driver_availability_with_custom_time_range(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        test('checks driver availability for specific time range', function () {
+            $resources = createCompanyWithResources();
+            $startTime = now()->addHour();
+            $endTime = now()->addHours(3);
 
-        $startTime = Carbon::now()->addDay();
-        $endTime = Carbon::now()->addDay()->addHours(2);
+            // Driver should be available initially
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                $startTime,
+                $endTime
+            ))->toBeTrue();
 
-        // No trips, driver should be available
-        $this->assertTrue($this->availabilityService->isDriverAvailable($driver->id, $startTime, $endTime));
+            // Create conflicting trip
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle'], $startTime, $endTime);
 
-        // Create a trip outside the time range
-        Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addDays(2),
-            'end_time' => Carbon::now()->addDays(2)->addHours(1),
-            'status' => 'scheduled',
-        ]);
+            // Driver should not be available now
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                $startTime,
+                $endTime
+            ))->toBeFalse();
+        });
 
-        // Driver should still be available
-        $this->assertTrue($this->availabilityService->isDriverAvailable($driver->id, $startTime, $endTime));
-    }
+        test('detects overlapping trips correctly', function () {
+            $resources = createCompanyWithResources();
 
-    public function test_vehicle_availability_with_custom_time_range(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            // Create existing trip from 10:00 to 14:00
+            createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                today()->setTime(10, 0),
+                today()->setTime(14, 0)
+            );
 
-        $startTime = Carbon::now()->addDay();
-        $endTime = Carbon::now()->addDay()->addHours(2);
+            // Test overlapping scenarios
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                today()->setTime(9, 0),  // 09:00
+                today()->setTime(11, 0)  // 11:00 (overlaps)
+            ))->toBeFalse();
 
-        // No trips, vehicle should be available
-        $this->assertTrue($this->availabilityService->isVehicleAvailable($vehicle->id, $startTime, $endTime));
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                today()->setTime(13, 0), // 13:00
+                today()->setTime(15, 0)  // 15:00 (overlaps)
+            ))->toBeFalse();
 
-        // Create a trip outside the time range
-        Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addDays(2),
-            'end_time' => Carbon::now()->addDays(2)->addHours(1),
-            'status' => 'scheduled',
-        ]);
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                today()->setTime(15, 0), // 15:00
+                today()->setTime(17, 0)  // 17:00 (no overlap)
+            ))->toBeTrue();
+        });
 
-        // Vehicle should still be available
-        $this->assertTrue($this->availabilityService->isVehicleAvailable($vehicle->id, $startTime, $endTime));
-    }
+        test('ignores completed and cancelled trips for availability', function () {
+            $resources = createCompanyWithResources();
+            $startTime = now()->addHour();
+            $endTime = now()->addHours(3);
 
-    public function test_get_upcoming_trips_for_driver(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            // Create completed trip
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle'], $startTime, $endTime, 'completed');
 
-        // Create past trip (should not be included)
-        Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->subHours(2),
-            'end_time' => Carbon::now()->subHour(),
-            'status' => 'completed',
-        ]);
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                $startTime,
+                $endTime
+            ))->toBeTrue();
 
-        // Create future trips
-        $trip1 = Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addHour(),
-            'end_time' => Carbon::now()->addHours(3),
-            'status' => 'scheduled',
-        ]);
+            // Create cancelled trip
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle'], $startTime, $endTime, 'cancelled');
 
-        $trip2 = Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addHours(4),
-            'end_time' => Carbon::now()->addHours(6),
-            'status' => 'scheduled',
-        ]);
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                $startTime,
+                $endTime
+            ))->toBeTrue();
+        });
+    });
 
-        $upcomingTrips = $this->availabilityService->getUpcomingTripsForDriver($driver->id);
+    describe('Vehicle Availability', function () {
+        
+        test('returns active vehicles only', function () {
+            $company = Company::factory()->create();
+            $activeVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            $inactiveVehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => false]);
 
-        $this->assertEquals(2, $upcomingTrips->count());
-        $this->assertTrue($upcomingTrips->contains($trip1));
-        $this->assertTrue($upcomingTrips->contains($trip2));
-    }
+            $availableVehicles = $this->availabilityService->getAvailableVehicles();
 
-    public function test_get_upcoming_trips_for_vehicle(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            expect($availableVehicles->contains(fn($v) => $v->is($activeVehicle)))->toBeTrue();
+            expect($availableVehicles->contains(fn($v) => $v->is($inactiveVehicle)))->toBeFalse();
+        });
 
-        // Create future trips
-        $trip1 = Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addHour(),
-            'end_time' => Carbon::now()->addHours(3),
-            'status' => 'scheduled',
-        ]);
+        test('excludes vehicles with scheduled trips', function () {
+            $resources = createCompanyWithResources();
+            $company2 = Company::factory()->create();
+            $freeVehicle = Vehicle::factory()->create(['company_id' => $company2->id, 'is_active' => true]);
+            
+            // Create trip for first vehicle
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle']);
 
-        $trip2 = Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => Carbon::now()->addHours(4),
-            'end_time' => Carbon::now()->addHours(6),
-            'status' => 'scheduled',
-        ]);
+            $availableVehicles = $this->availabilityService->getAvailableVehicles();
 
-        $upcomingTrips = $this->availabilityService->getUpcomingTripsForVehicle($vehicle->id);
+            expect($availableVehicles->contains(fn($v) => $v->is($resources['vehicle'])))->toBeFalse();
+            expect($availableVehicles->contains(fn($v) => $v->is($freeVehicle)))->toBeTrue();
+        });
 
-        $this->assertEquals(2, $upcomingTrips->count());
-        $this->assertTrue($upcomingTrips->contains($trip1));
-        $this->assertTrue($upcomingTrips->contains($trip2));
-    }
+        test('checks vehicle availability for specific time range', function () {
+            $resources = createCompanyWithResources();
+            $startTime = now()->addHour();
+            $endTime = now()->addHours(3);
 
-    public function test_completed_trips_do_not_affect_availability(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            // Vehicle should be available initially
+            expect($this->availabilityService->isVehicleAvailable(
+                $resources['vehicle']->id,
+                $startTime,
+                $endTime
+            ))->toBeTrue();
 
-        $startTime = Carbon::now()->addHour();
-        $endTime = Carbon::now()->addHours(3);
+            // Create conflicting trip
+            createTrip($resources['company'], $resources['driver'], $resources['vehicle'], $startTime, $endTime);
 
-        // Create a completed trip
-        Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'status' => 'completed',
-        ]);
+            // Vehicle should not be available now
+            expect($this->availabilityService->isVehicleAvailable(
+                $resources['vehicle']->id,
+                $startTime,
+                $endTime
+            ))->toBeFalse();
+        });
+    });
 
-        // Driver and vehicle should still be available
-        $this->assertTrue($this->availabilityService->isDriverAvailable($driver->id, $startTime, $endTime));
-        $this->assertTrue($this->availabilityService->isVehicleAvailable($vehicle->id, $startTime, $endTime));
-    }
+    describe('Upcoming Trips', function () {
+        
+        test('gets upcoming trips for driver', function () {
+            $resources = createCompanyWithResources();
 
-    public function test_cancelled_trips_do_not_affect_availability(): void
-    {
-        $company = Company::factory()->create();
-        $driver = Driver::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $vehicle = Vehicle::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+            // Create past trip (should not be included)
+            createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                Carbon::now()->subHours(2),
+                Carbon::now()->subHour(),
+                'completed'
+            );
 
-        $startTime = Carbon::now()->addHour();
-        $endTime = Carbon::now()->addHours(3);
+            // Create future trips
+            $trip1 = createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                Carbon::now()->addHour(),
+                Carbon::now()->addHours(3)
+            );
 
-        // Create a cancelled trip
-        Trip::factory()->create([
-            'company_id' => $company->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle->id,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'status' => 'cancelled',
-        ]);
+            $trip2 = createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                Carbon::now()->addHours(4),
+                Carbon::now()->addHours(6)
+            );
 
-        // Driver and vehicle should still be available
-        $this->assertTrue($this->availabilityService->isDriverAvailable($driver->id, $startTime, $endTime));
-        $this->assertTrue($this->availabilityService->isVehicleAvailable($vehicle->id, $startTime, $endTime));
-    }
-}
+            $upcomingTrips = $this->availabilityService->getUpcomingTripsForDriver($resources['driver']->id);
+
+            expect($upcomingTrips)
+                ->toHaveCount(2);
+            expect($upcomingTrips->contains(fn($t) => $t->is($trip1)))->toBeTrue();
+            expect($upcomingTrips->contains(fn($t) => $t->is($trip2)))->toBeTrue();
+        });
+
+        test('gets upcoming trips for vehicle', function () {
+            $resources = createCompanyWithResources();
+
+            $trip1 = createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                Carbon::now()->addHour(),
+                Carbon::now()->addHours(3)
+            );
+
+            $trip2 = createTrip(
+                $resources['company'], 
+                $resources['driver'], 
+                $resources['vehicle'], 
+                Carbon::now()->addHours(4),
+                Carbon::now()->addHours(6)
+            );
+
+            $upcomingTrips = $this->availabilityService->getUpcomingTripsForVehicle($resources['vehicle']->id);
+
+            expect($upcomingTrips)
+                ->toHaveCount(2);
+            expect($upcomingTrips->contains(fn($t) => $t->is($trip1)))->toBeTrue();
+            expect($upcomingTrips->contains(fn($t) => $t->is($trip2)))->toBeTrue();
+        });
+    });
+
+    describe('Edge Cases', function () {
+        
+        test('handles non-existent driver gracefully', function () {
+            expect($this->availabilityService->isDriverAvailable(
+                999999, // Non-existent ID
+                now()->addHour(),
+                now()->addHours(2)
+            ))->toBeTrue();
+        });
+
+        test('handles non-existent vehicle gracefully', function () {
+            expect($this->availabilityService->isVehicleAvailable(
+                999999, // Non-existent ID
+                now()->addHour(),
+                now()->addHours(2)
+            ))->toBeTrue();
+        });
+
+        test('handles invalid time ranges', function () {
+            $resources = createCompanyWithResources();
+
+            expect($this->availabilityService->isDriverAvailable(
+                $resources['driver']->id,
+                now()->addHours(2), // End before start
+                now()->addHour()
+            ))->toBeTrue();
+        });
+    });
+});
