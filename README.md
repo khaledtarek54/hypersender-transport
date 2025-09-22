@@ -1,9 +1,6 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="360" alt="Laravel">
-</p>
 
 
-# Hypersender Transport (Filament forever)
+# Hypersender Transport (Filament forever 🥳)
 
 A transport management demo built with Laravel, Eloquent, and Filament. It manages companies, drivers, vehicles, and trips; provides availability calculations; and ships with a polished Filament admin dashboard and a comprehensive test suite.
 
