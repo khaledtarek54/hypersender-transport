@@ -1,96 +1,75 @@
+# Hypersender Transport
 
+> A fleet-management demo built with **Laravel 11** and **Filament 5** — companies, drivers, vehicles, and trips, with an availability engine, KPI dashboards, and a comprehensive Pest test suite.
 
-# Hypersender Transport (Filament forever 🥳)
+## Why this project
 
-A transport management demo built with Laravel, Eloquent, and Filament. It manages companies, drivers, vehicles, and trips; provides availability calculations; and ships with a polished Filament admin dashboard and a comprehensive test suite.
+Built as a reference for production-grade Laravel admin panels: real availability/conflict logic, dashboard widgets that compute live, and tests that exercise both the domain model and the Filament UI layer.
 
-## ✨ Highlights
+## Features
 
-- Filament admin with custom dashboard widgets
-  - Active KPIs and resource availability
+- **Filament admin** with custom dashboard widgets:
+  - Active KPIs (drivers, vehicles, trips)
   - Monthly trips line chart
-  - Trips by status doughnut chart (last 30 days)
-- Availability engine (drivers/vehicles) with overlap logic
-- Eloquent relationships for Companies, Drivers, Vehicles, Trips
-- Trip scopes and computed properties (duration)
-- Pest tests (Feature + Unit) for confidence and safety
+  - Trips-by-status doughnut chart (last 30 days)
+  - Driver / vehicle availability cards
+- **Availability engine** — overlap detection for drivers and vehicles across trip windows
+- **Domain model** — Eloquent relationships across Companies, Drivers, Vehicles, Trips
+- **Trip scopes & computed properties** — duration, status, current-trip lookup
+- **Pest test suite** — feature + unit coverage for the availability engine and Filament resources
 
-## 🚀 Quick Start
+## Tech stack
 
-Prerequisites:
 - PHP 8.2+
-- Composer
-- Mysql (default) or your preferred database
+- Laravel 11
+- Filament 5
+- MySQL
+- Pest 3
+- Livewire 3 (Filament-bundled)
 
-Clone & install:
+## Architecture
+
+```
+app/
+├── Filament/Resources/    # Companies, Drivers, Vehicles, Trips
+├── Filament/Widgets/      # Dashboard KPI cards + charts
+├── Models/                # Eloquent + relationships + scopes
+└── Services/Availability  # Overlap detection engine
+tests/
+├── Feature/               # End-to-end Filament resource tests
+└── Unit/                  # Availability engine + scopes
+```
+
+## Quick start
+
 ```bash
 git clone https://github.com/khaledtarek54/hypersender-transport
 cd hypersender-transport
 composer install
 cp .env.example .env
-```
-
-Generate app key and migrate:
-```bash
 php artisan key:generate
-php artisan migrate
-php artisan db:seed
-```
-
-Serve the app:
-```bash
+php artisan migrate --seed
 php artisan serve
-# Filament panel will be under /app (e.g., http://127.0.0.1:8000/app)
 ```
 
-Login:
-```bash
-email: admin@example.com
-password: password
-```
+Visit `/admin` and log in with the seeded credentials.
 
-Run tests:
+## Run the tests
+
 ```bash
-vendor\bin\pest.bat  # Windows
+php artisan test
 # or
-./vendor/bin/pest     # macOS/Linux
+./vendor/bin/pest
 ```
 
-## 🧭 Domain Model
+## Screenshots
 
-- `Company` has many `Driver`, `Vehicle`, `Trip`
-- `Driver` belongs to `Company`, has many `Trip`
-- `Vehicle` belongs to `Company`, has many `Trip`
-- `Trip` belongs to `Company`, `Driver`, `Vehicle`
+> Coming soon — dashboard, driver list, trip detail.
 
-Trip enum: `App\Models\Enums\TripStatus` (scheduled, in_progress, completed, cancelled)
+## License
 
-Computed property:
-- `Trip::duration_minutes` – difference between `start_time` and `end_time` in minutes
+MIT
 
-Scopes:
-- `Trip::upcoming()` – start time in the future
-- `Trip::completed()` – status completed
-- `Trip::active()` – scheduled or in_progress
-- `Trip::status($status)` – filter by status
+---
 
-Driver & Vehicle:
-- `active()` scope for filtering active resources
-
-Validation rule:
-- `App\Rules\NoOverlappingTrips` – prevents overlapping trips for the same driver/vehicle (inclusive bounds)
-
-Availability service:
-- `App\Services\AvailabilityService` – returns available drivers/vehicles and upcoming trips per resource
-
-## 📊 Admin Dashboard (Filament)
-
-Location: `app/Filament/Pages/Dashboard.php`
-
-Widgets:
-- `ActiveTripsWidget` – key metrics
-- `AvailableResourcesWidget` – drivers/vehicles available now
-- `MonthlyTripsWidget` – trips per month (last 12 months)
-- `TripsByStatusWidget` – trips by status (last 30 days, doughnut)
-
-
+Built by [Khaled Tarek](https://github.com/khaledtarek54) · [LinkedIn](https://www.linkedin.com/in/khaled-tarek-3596401b1)
